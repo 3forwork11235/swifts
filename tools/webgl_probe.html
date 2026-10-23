@@ -1,0 +1,16 @@
+<!doctype html><meta charset="utf-8"><title>probe</title>
+<body style="margin:0;background:#111;color:#0f0;font:14px monospace"><pre id="o"></pre>
+<script src="../vendor/three.min.js"></script>
+<script>
+const o=document.getElementById('o');
+try{
+  const r=new THREE.WebGLRenderer({antialias:true});
+  const gl=r.getContext();
+  const dbg=gl.getExtension('WEBGL_debug_renderer_info');
+  o.textContent='THREE r'+THREE.REVISION+'\nWebGL2: '+(r.capabilities.isWebGL2)+'\nrenderer: '+(dbg?gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL):'?')+'\nmaxTex: '+r.capabilities.maxTextureSize+'\nDPR: '+devicePixelRatio+'\nsize: '+innerWidth+'x'+innerHeight;
+  r.setSize(300,200);document.body.append(r.domElement);
+  const s=new THREE.Scene(),c=new THREE.PerspectiveCamera(60,1.5,.1,100);c.position.z=3;
+  const m=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),new THREE.MeshNormalMaterial());s.add(m);m.rotation.set(.5,.7,0);
+  r.render(s,c);
+}catch(e){o.textContent='ERR '+e}
+</script>

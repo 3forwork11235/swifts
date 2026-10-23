@@ -1,0 +1,58 @@
+<!doctype html><meta charset="utf-8"><title>viewer</title>
+<style>html,body{margin:0;height:100%;background:#000;overflow:hidden}canvas{width:100%;height:100%;display:block}#i{position:fixed;left:8px;top:8px;color:#9ff;font:12px monospace;white-space:pre}</style>
+<canvas id="gl"></canvas><div id="i"></div>
+<script src="../vendor/three.min.js"></script>
+<script src="../core.js"></script><script src="../data.js"></script><script src="../world.js"></script>
+<script src="../models.js"></script><script src="../fx.js"></script><script src="../render.js"></script>
+<script>
+const q=new URLSearchParams(location.search);
+const map=q.get('map')||'city',view=q.get('view')||'orbit';
+const R=SW.Render;
+if(!R.init(document.getElementById('gl'),2))document.getElementById('i').textContent='NO WEBGL';
+const world=SW.makeWorld(map,+q.get('seed')||7);
+R.loadWorld(world);
+// строй дронов
+const ids=[...SW.HULL_IDS,...SW.FOE_IDS];
+ids.forEach((h,i)=>{
+  const foe=SW.FOE_IDS.includes(h);
+  R.addDrone(i+1,{hull:h,foe,skin:{paint:i%12,trail:i%6}});
+});
+// установки
+const sx=[['sam',-60],['flak',-30],['pylon',0],['core',60]];
+sx.forEach((s,i)=>{R.ensureSite(i,s[0],s[1],0,-200);});
+const sam=[{x:0,y:30,z:0}];
+let t=0,last=performance.now();
+function frame(now){
+  const dt=Math.min(.05,(now-last)/1000);last=now;t+=dt;
+  // дроны выстроены в ряд над улицей
+  ids.forEach((h,i)=>{
+    R.updateDrone(i+1,{x:(i-4)*14,y:110,z:-120,yaw:Math.sin(t*.7)*.2,pitch:.05,roll:Math.sin(t)*.3,spd:44,hp:100,maxhp:100,flags:1|(i%3===0?2:0)|(i%2===0?4:0)|(i===1?16:0),alive:true},dt);
+  });
+  sx.forEach((s,i)=>R.updateSite(i,true,{x:0,y:80,z:0},i===3,i%2==0,dt));
+  // ракеты: две летят по кругу, у одной — зенитная
+  for(let k=0;k<2;k++){const a=t*1.4+k*3;R.updateMissile(500+k,{x:Math.cos(a)*40,y:112+k*6,z:-120+Math.sin(a)*40,yaw:-a-Math.PI/2*0+Math.PI,pitch:0},k===0?0:1,dt)}
+  R.sweepMissiles();
+  if(Math.floor(t*2)!==window.__lf){window.__lf=Math.floor(t*2);if(window.__lf%4===0)R.fx.flare(0,112,-100,3,-2,-6);if(window.__lf%6===0){R.fx.explosion(20,115,-110,8,1);R.fx.explosion(-25,112,-130,12,2)}if(window.__lf%11===0)R.fx.explosion(0,130,-120,14,3)}
+  R.updatePickups(t);
+  // камера
+  const c=R.cam;
+  if(q.get('d')){const k=+q.get('d')-1,r0=+q.get('r')||11;const a=t*.6;c.position.set((k-4)*14+Math.cos(a)*r0,110+3,-120+Math.sin(a)*r0);c.lookAt((k-4)*14,110,-120)}
+  else if(view==='orbit'){const a=t*.15;c.position.set(Math.cos(a)*90,120,-120+Math.sin(a)*60+60);c.lookAt(0,105,-120)}
+  else if(view==='city'){const a=t*.1;c.position.set(Math.cos(a)*330,240,Math.sin(a)*330);c.lookAt(0,150,0)}
+  else if(view==='site'){c.position.set(-45,22,-170);c.lookAt(-55,8,-200)}
+  else if(view==='fx'){c.position.set(0,125,-70);c.lookAt(0,112,-120)}
+  else if(view==='pick'){const p=world.pickSpots[0];c.position.set(p.x+16,p.y+4,p.z+16);c.lookAt(p.x,p.y,p.z)}
+  else if(view==='low'){c.position.set(300+t*20,35,300);c.lookAt(300+t*20+60,40,250)}
+  else if(view==='mother'){c.position.set(-20,110,-130);c.lookAt(40,110,-120)}
+  c.updateMatrixWorld();
+  if(Math.random()<.04)R.fx.explosion(R.fx.rnd(60),110+R.fx.rnd(20),-60,[5,8,6,12][Math.floor(Math.random()*4)],[1,2,3,4][Math.floor(Math.random()*4)]);
+  if(Math.random()<.5)R.fx.tracer(-40,110,-100,0,0,-300,.5,8,0x9cf3ff);
+  R.fx.beam(0,-30,108,-100,0,0,-1,160,0x31e6ff,true);
+  R.fx.setScale(R.H*R.pr,R.cam.fov);
+  R.tick(dt,t);R.render();
+  document.getElementById('i').textContent=`${map} ${view} t=${t.toFixed(1)}\ncalls=${R.renderer.info.render.calls} tris=${R.renderer.info.render.triangles}`;
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+addEventListener('resize',()=>R.resize());
+</script>

@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#04060d">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Стрижи">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- шрифты подгружаются без блокировки страницы: без интернета игра стартует сразу, со шрифтами по умолчанию -->
+<link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@500;700;800;900&family=Russo+One&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<title>Стрижи</title>
+<style>
+:root{
+  --bg:#04060d;--panel:rgba(8,16,30,.74);--panel2:rgba(12,26,46,.9);--line:rgba(80,200,255,.22);--line2:rgba(80,200,255,.45);
+  --cyan:#31e6ff;--mag:#ff3fb4;--amb:#ffb347;--grn:#5dff9a;--red:#ff4d5e;--vio:#a77bff;--txt:#e8f6ff;--dim:#8fb0c4;--faint:#5b7a8e;
+  --display:'Russo One','Exo 2','Segoe UI',system-ui,sans-serif;--body:'Exo 2','Segoe UI',system-ui,-apple-system,Roboto,sans-serif;
+  --cut:12px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--txt);font-family:var(--body);font-weight:600;-webkit-text-size-adjust:100%;overflow:hidden;overscroll-behavior:none}
+body{-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
+button,input,select{font-family:inherit;color:inherit}
+canvas#stage{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:0;touch-action:none}
+canvas#hud{position:fixed;inset:0;z-index:2;pointer-events:none}
+#veil{position:fixed;inset:0;z-index:1;pointer-events:none;transition:opacity .5s;
+  background:radial-gradient(120% 90% at 50% 40%,rgba(4,6,13,.15),rgba(4,6,13,.82) 75%),linear-gradient(180deg,rgba(4,6,13,.35),rgba(4,6,13,.7))}
+body.scr-game #veil,body.scr-hangar #veil{opacity:0}
+body.scr-hangar #veil{opacity:.25}
+body.scr-game #veil{display:none}
+#boot{position:fixed;inset:0;z-index:50;background:var(--bg);display:grid;place-items:center;font-family:var(--display);letter-spacing:.2em;color:var(--cyan);transition:opacity .5s}
+#boot.gone{opacity:0;pointer-events:none}
+#boot .bar{width:220px;height:3px;background:rgba(255,255,255,.1);margin-top:14px;overflow:hidden}
+#boot .bar i{display:block;height:100%;width:40%;background:var(--cyan);animation:load 1.2s infinite ease-in-out}
+@keyframes load{0%{transform:translateX(-100%)}100%{transform:translateX(260%)}}
+
+/* ---------- экраны ---------- */
+.screen{display:none;position:fixed;inset:0;z-index:3;overflow:auto;-webkit-overflow-scrolling:touch;padding:max(16px,env(safe-area-inset-top)) max(18px,env(safe-area-inset-right)) max(22px,env(safe-area-inset-bottom)) max(18px,env(safe-area-inset-left))}
+.screen.active{display:block;animation:enter .4s cubic-bezier(.2,.8,.2,1)}
+@keyframes enter{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+.wrap{max-width:860px;margin:0 auto}
+.wrap.narrow{max-width:520px}
+#game{pointer-events:none;overflow:hidden;padding:0}
+h1,h2,h3{font-family:var(--display);font-weight:400;margin:0;letter-spacing:.04em}
+.title{font-size:clamp(22px,5vw,30px);text-align:center;margin:8px 0 4px;text-transform:uppercase}
+.sub{color:var(--dim);text-align:center;margin:0 0 16px;line-height:1.5}
+.cap{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--faint);font-weight:800;margin:0 0 8px}
+
+/* панели и кнопки */
+.panel{position:relative;background:var(--panel);border:1px solid var(--line);padding:16px;margin:12px 0;-webkit-backdrop-filter:blur(14px) saturate(140%);backdrop-filter:blur(14px) saturate(140%);
+  clip-path:polygon(var(--cut) 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%,0 var(--cut))}
+.panel::before{content:"";position:absolute;left:0;top:0;width:36px;height:2px;background:var(--cyan);box-shadow:0 0 10px var(--cyan)}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.row.c{justify-content:center}.row.sb{justify-content:space-between}
+.grow{flex:1;min-width:0}
+.btn{position:relative;padding:13px 22px;font-size:15px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;border:0;color:var(--txt);
+  background:linear-gradient(180deg,rgba(60,120,160,.28),rgba(20,50,80,.5));box-shadow:inset 0 0 0 1px var(--line2);touch-action:manipulation;transition:filter .15s,transform .12s,box-shadow .2s;
+  clip-path:polygon(10px 0,100% 0,calc(100% - 10px) 100%,0 100%)}
+.btn:hover{filter:brightness(1.25)}
+.btn:active{transform:translateY(1px) scale(.985)}
+.btn:disabled{opacity:.38;pointer-events:none}
+.btn.primary{background:linear-gradient(180deg,#5af0ff,#12a9d6);color:#021824;box-shadow:inset 0 0 0 1px rgba(255,255,255,.5),0 0 24px rgba(49,230,255,.35)}
+.btn.warn{background:linear-gradient(180deg,#ff7a8a,#d92c46);color:#fff}
+.btn.gold{background:linear-gradient(180deg,#ffe08a,#f0a62e);color:#2a1800}
+.btn.big{padding:17px 26px;font-size:clamp(15px,3.8vw,19px);font-family:var(--display);letter-spacing:.1em}
+.btn.small{padding:8px 14px;font-size:12px}
+.btn.wide{width:100%}
+.btn.ghost{background:transparent}
+.btn .ic{margin-right:8px}
+input[type=text],select{width:100%;padding:12px 14px;font-size:16px;font-weight:700;background:rgba(2,10,20,.7);border:1px solid var(--line2);outline:none;border-radius:0;transition:border-color .2s,box-shadow .2s}
+input[type=text]:focus,select:focus{border-color:var(--cyan);box-shadow:0 0 0 3px rgba(49,230,255,.18)}
+select{appearance:none;-webkit-appearance:none;padding-right:34px;cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%2331e6ff' stroke-width='2'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center}
+select option{background:#0a1626;color:var(--txt)}
+.lbl{display:flex;flex-direction:column;gap:6px;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);font-weight:800}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px}
+label.chk{display:inline-flex;gap:10px;align-items:center;cursor:pointer;font-weight:800;font-size:14px;margin:4px 14px 4px 0}
+label.chk input{appearance:none;-webkit-appearance:none;width:40px;height:22px;background:rgba(255,255,255,.1);border:1px solid var(--line2);position:relative;margin:0;cursor:pointer;transition:background .2s}
+label.chk input::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;background:#bcd6e6;transition:transform .2s,background .2s}
+label.chk input:checked{background:rgba(49,230,255,.35)}
+label.chk input:checked::after{transform:translateX(18px);background:var(--cyan)}
+input[type=range]{width:100%;accent-color:var(--cyan)}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;background:rgba(0,0,0,.4);border:1px solid var(--line);font-weight:800;font-size:14px;color:var(--amb)}
+.net{white-space:pre-line;text-align:center;color:var(--amb);font-size:13px;line-height:1.5;min-height:18px;margin:10px 0}
+
+/* ---------- меню ---------- */
+.logo{display:flex;flex-direction:column;align-items:center;margin:clamp(6px,3vh,26px) auto 8px;user-select:none}
+.logo svg{width:clamp(64px,14vw,92px);filter:drop-shadow(0 0 18px rgba(49,230,255,.55));animation:float 4s ease-in-out infinite}
+@keyframes float{50%{transform:translateY(-6px)}}
+.logo-word{font-family:var(--display);font-size:clamp(50px,13vw,92px);line-height:1;letter-spacing:.14em;padding-left:.14em;
+  background:linear-gradient(180deg,#fff 10%,#9ff3ff 45%,#31e6ff 62%,#ff3fb4 120%);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 4px 18px rgba(49,230,255,.35))}
+.logo-sub{font-size:clamp(10px,2.4vw,13px);letter-spacing:.42em;color:var(--dim);margin-top:4px;padding-left:.4em;text-transform:uppercase;font-weight:800}
+.menu-btns{display:flex;flex-direction:column;gap:12px;max-width:440px;margin:16px auto}
+.who{display:flex;gap:10px;align-items:center;max-width:440px;margin:6px auto}
+.who input{text-align:center;font-family:var(--display);letter-spacing:.06em}
+#ver{position:fixed;left:12px;bottom:8px;font-size:11px;color:var(--faint);z-index:4;pointer-events:none}
+#purse{position:fixed;right:12px;top:max(10px,env(safe-area-inset-top));z-index:4}
+body.scr-game #ver,body.scr-game #purse,body.scr-lobby #purse,body.scr-hangar #purse{display:none}
+
+/* ---------- выбор режима, миссии ---------- */
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.card{position:relative;padding:16px;background:var(--panel);border:1px solid var(--line);cursor:pointer;text-align:left;transition:transform .15s,border-color .2s,box-shadow .2s;
+  clip-path:polygon(var(--cut) 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%,0 var(--cut))}
+.card:hover{transform:translateY(-2px);border-color:var(--cyan);box-shadow:0 0 22px rgba(49,230,255,.18)}
+.card h3{font-size:20px;margin-bottom:6px}
+.card p{margin:0;color:var(--dim);font-size:14px;line-height:1.45}
+.card .big{font-size:36px;display:block;margin-bottom:6px}
+.card.locked{opacity:.45;cursor:default;filter:grayscale(.6)}
+.card.locked:hover{transform:none;border-color:var(--line);box-shadow:none}
+.stars{color:var(--amb);letter-spacing:.1em;font-size:18px}
+.stars i{font-style:normal;color:rgba(255,255,255,.2)}
+.mrow{display:flex;gap:14px;align-items:center;padding:14px 16px;background:var(--panel);border:1px solid var(--line);margin:10px 0;cursor:pointer;transition:border-color .2s,transform .15s}
+.mrow:hover{border-color:var(--cyan);transform:translateX(3px)}
+.mrow.locked{opacity:.4;cursor:default}.mrow.locked:hover{transform:none;border-color:var(--line)}
+.mrow .num{font-family:var(--display);font-size:30px;color:var(--cyan);width:44px;text-align:center}
+.mrow h3{font-size:18px;margin-bottom:3px}.mrow p{margin:0;font-size:13px;color:var(--dim);line-height:1.4}
+.dlg{display:flex;gap:12px;margin:12px 0;align-items:flex-start}
+.dlg .pt{flex:none;width:46px;height:46px;display:grid;place-items:center;font-size:24px;border:1px solid var(--line2);background:rgba(0,0,0,.4)}
+.dlg .bub{background:rgba(255,255,255,.05);border-left:3px solid var(--cyan);padding:9px 13px;line-height:1.5;font-size:15px}
+.dlg .nm{font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:800;margin-bottom:3px}
+.story{font-size:clamp(15px,3.6vw,19px);line-height:1.7;text-align:center;color:#cfe6f3;max-width:640px;margin:0 auto}
+.story p{margin:0 0 14px;opacity:0;animation:fadein .8s forwards}
+@keyframes fadein{to{opacity:1}}
+
+/* ---------- лобби ---------- */
+.code{display:flex;gap:8px;justify-content:center;margin:8px 0}
+.code span{width:clamp(34px,10vw,48px);height:clamp(44px,12vw,60px);display:grid;place-items:center;font-family:var(--display);font-size:clamp(24px,7vw,34px);background:rgba(0,0,0,.5);border:1px solid var(--line2);color:var(--cyan)}
+.link{font-size:12px;color:var(--dim);word-break:break-all;text-align:center;margin:6px 0}
+.slots{display:grid;gap:8px}
+.slot{display:flex;gap:12px;align-items:center;padding:10px 12px;background:rgba(255,255,255,.04);border:1px solid var(--line)}
+.slot.me{border-color:var(--cyan);background:rgba(49,230,255,.08)}
+.slot.empty{opacity:.55}
+.slot .ic{width:44px;height:44px;display:grid;place-items:center;border:1px solid var(--line2);background:rgba(0,0,0,.4);font-size:22px;flex:none}
+.slot .nm{font-weight:800;font-size:16px}
+.slot .st{font-size:12px;color:var(--dim)}
+.slot .on{color:var(--grn)}
+.tm{padding:4px 10px;font-size:11px;font-weight:800;letter-spacing:.1em;cursor:pointer;border:1px solid var(--line2);background:rgba(0,0,0,.3)}
+.tm.b{color:#5db4ff;border-color:#5db4ff}.tm.r{color:#ff6b6b;border-color:#ff6b6b}
+
+/* ---------- ангар ---------- */
+#hangar{pointer-events:none}
+#hangar .side{pointer-events:auto;max-width:460px;margin-left:auto;display:flex;flex-direction:column;height:100%}
+#hangar .head{pointer-events:auto}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.tab{padding:8px 12px;font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;border:1px solid var(--line);background:rgba(0,0,0,.35);color:var(--dim)}
+.tab.on{color:#021824;background:var(--cyan);border-color:var(--cyan)}
+.items{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;overflow:auto;padding-right:2px}
+.item{padding:10px;text-align:center;cursor:pointer;border:1px solid var(--line);background:rgba(8,20,36,.8);position:relative;transition:border-color .15s,transform .12s}
+.item:hover{border-color:var(--cyan);transform:translateY(-1px)}
+.item.on{border-color:var(--cyan);box-shadow:inset 0 0 0 1px var(--cyan),0 0 16px rgba(49,230,255,.25)}
+.item .sw{height:34px;margin-bottom:6px;border:1px solid rgba(255,255,255,.2)}
+.item .in{font-weight:800;font-size:13px;line-height:1.25}.item .ip{font-size:12px;margin-top:3px;color:var(--amb);font-weight:800}.item .ip.have{color:var(--grn)}
+.item .ix{font-size:11px;color:var(--dim);margin-top:4px;line-height:1.3;font-weight:600}
+.meter{height:6px;background:rgba(255,255,255,.1);margin:3px 0 7px}.meter i{display:block;height:100%;background:var(--cyan)}
+.statrow{display:grid;grid-template-columns:70px 1fr;gap:8px;align-items:center;font-size:12px;color:var(--dim);font-weight:800;text-transform:uppercase;letter-spacing:.08em}
+
+/* ---------- профиль, настройки ---------- */
+.stat5{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-bottom:12px}
+.stat5 div{padding:10px;background:rgba(255,255,255,.04);border:1px solid var(--line);text-align:center}
+.stat5 b{display:block;font-family:var(--display);font-size:22px;color:var(--cyan);font-weight:400}.stat5 span{font-size:11px;color:var(--dim);letter-spacing:.1em;text-transform:uppercase}
+.ach{display:flex;gap:12px;align-items:center;padding:10px;margin:6px 0;background:rgba(255,255,255,.04);border:1px solid var(--line);opacity:.62}
+.ach.ok{opacity:1;border-color:rgba(93,255,154,.5)}.ach .ai{font-size:26px;width:38px;text-align:center}
+.ach .an{font-weight:800}.ach .ad{font-size:12px;color:var(--dim)}.ach .ap{margin-left:auto;font-weight:800;color:var(--amb);font-size:13px}
+.task{display:flex;gap:10px;align-items:center;padding:10px;margin:6px 0;background:rgba(255,255,255,.04);border:1px solid var(--line)}
+.task.ok{border-color:rgba(93,255,154,.5)}.task .tx{flex:1}.task .tp{font-size:12px;color:var(--dim)}
+.bar{height:5px;background:rgba(255,255,255,.12);margin-top:5px}.bar i{display:block;height:100%;background:var(--cyan)}
+.srow{display:grid;grid-template-columns:1fr 1.2fr;gap:12px;align-items:center;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.06)}
+
+/* ---------- в игре ---------- */
+#radio{position:fixed;left:50%;top:max(96px,14vh);transform:translateX(-50%) translateY(-10px);width:min(520px,92vw);z-index:6;pointer-events:none;opacity:0;transition:opacity .25s,transform .25s}
+#radio.show{opacity:1;transform:translateX(-50%)}
+#radio .dlg{margin:0;background:rgba(4,12,22,.82);border:1px solid var(--line2);padding:10px 12px;align-items:center}
+body.touch #radio{top:70px;width:min(460px,60vw)}
+#touch{position:fixed;inset:0;z-index:5;display:none;pointer-events:none}
+#joyZone{position:absolute;left:0;top:18%;width:52%;bottom:0;pointer-events:auto;touch-action:none}
+#joyBase{position:fixed;width:124px;height:124px;margin:-62px 0 0 -62px;border:2px solid rgba(49,230,255,.55);border-radius:50%;background:rgba(49,230,255,.08);display:none;pointer-events:none}
+#joyBase.show{display:block}
+#joyKnob{position:absolute;left:50%;top:50%;width:54px;height:54px;border-radius:50%;background:rgba(49,230,255,.45);border:2px solid var(--cyan);transform:translate(-50%,-50%);box-shadow:0 0 18px rgba(49,230,255,.5)}
+.tb{position:absolute;pointer-events:auto;touch-action:none;border:2px solid rgba(49,230,255,.6);background:rgba(4,20,34,.55);color:var(--txt);border-radius:50%;font-weight:900;font-size:22px;display:grid;place-items:center;width:62px;height:62px;padding:0;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}
+.tb.on{background:rgba(49,230,255,.5);box-shadow:0 0 22px rgba(49,230,255,.7)}
+.tb.big{width:92px;height:92px;font-size:15px;letter-spacing:.06em;border-color:rgba(255,77,94,.8);background:rgba(60,8,16,.55)}
+.tb.big.on{background:rgba(255,77,94,.6)}
+.tb.sm{width:44px;height:44px;font-size:18px;border-width:1px}
+#bFire{right:max(18px,env(safe-area-inset-right));bottom:max(18px,env(safe-area-inset-bottom))}
+#bMsl{right:calc(max(18px,env(safe-area-inset-right)) + 104px);bottom:calc(max(18px,env(safe-area-inset-bottom)) + 8px)}
+#bFlare{right:calc(max(18px,env(safe-area-inset-right)) + 10px);bottom:calc(max(18px,env(safe-area-inset-bottom)) + 108px)}
+#bBoost{right:calc(max(18px,env(safe-area-inset-right)) + 92px);bottom:calc(max(18px,env(safe-area-inset-bottom)) + 84px)}
+#bBrake{right:calc(max(18px,env(safe-area-inset-right)) + 150px);bottom:calc(max(18px,env(safe-area-inset-bottom)) + 22px);display:none}
+#bSwap{right:calc(max(18px,env(safe-area-inset-right)) + 160px);bottom:calc(max(18px,env(safe-area-inset-bottom)) + 70px)}
+#bCam{right:max(12px,env(safe-area-inset-right));top:max(12px,env(safe-area-inset-top))}
+#bScore{right:calc(max(12px,env(safe-area-inset-right)) + 52px);top:max(12px,env(safe-area-inset-top))}
+#bPause{right:calc(max(12px,env(safe-area-inset-right)) + 104px);top:max(12px,env(safe-area-inset-top))}
+#bRadio{right:calc(max(12px,env(safe-area-inset-right)) + 156px);top:max(12px,env(safe-area-inset-top))}
+.ov{position:fixed;inset:0;z-index:20;display:none;place-items:center;background:rgba(2,6,12,.72);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);padding:16px;overflow:auto}
+.ov.show{display:grid;animation:enter .25s}
+.ov .box{width:min(560px,100%);max-height:100%;overflow:auto}
+.ov.wide .box{width:min(760px,100%)}
+table.tbl{width:100%;border-collapse:collapse;font-size:14px}
+table.tbl th{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);text-align:right;padding:6px 8px;font-weight:800}
+table.tbl th:first-child,table.tbl td:first-child{text-align:left}
+table.tbl td{padding:8px;text-align:right;border-top:1px solid rgba(255,255,255,.07);font-weight:700}
+table.tbl tr.me td{color:var(--cyan);background:rgba(49,230,255,.07)}
+table.tbl tr.b td:first-child{border-left:3px solid #5db4ff}table.tbl tr.r td:first-child{border-left:3px solid #ff6b6b}
+.bigtxt{font-family:var(--display);font-size:clamp(28px,7vw,48px);text-align:center;margin:4px 0}
+.win{color:var(--grn);text-shadow:0 0 24px rgba(93,255,154,.5)}.lose{color:var(--red);text-shadow:0 0 24px rgba(255,77,94,.5)}
+.gain{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin:10px 0}
+.gain .g{padding:6px 12px;background:rgba(0,0,0,.4);border:1px solid var(--line);font-weight:800;font-size:13px}
+#rotate{display:none;position:fixed;inset:0;z-index:40;background:#04060d;place-items:center;text-align:center;font-family:var(--display);font-size:20px;line-height:1.6;padding:30px;color:var(--cyan)}
+@media (orientation:portrait){body.touch.scr-game #rotate{display:grid}}
+#phrases{position:fixed;right:max(12px,env(safe-area-inset-right));top:calc(max(12px,env(safe-area-inset-top)) + 54px);z-index:6;display:none;grid-template-columns:1fr 1fr;gap:6px;width:min(300px,62vw)}
+#phrases.show{display:grid}
+#phrases button{padding:10px 8px;font-size:13px;font-weight:800;background:rgba(4,20,34,.88);border:1px solid var(--line2);color:var(--txt);pointer-events:auto}
+#toast{position:fixed;left:50%;top:max(16px,env(safe-area-inset-top));transform:translate(-50%,-20px);z-index:60;padding:10px 18px;background:rgba(6,20,34,.95);border:1px solid var(--cyan);font-weight:800;opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;max-width:92vw;text-align:center}
+#toast.show{opacity:1;transform:translate(-50%,0)}
+#fps{position:fixed;left:8px;top:6px;z-index:30;font-size:11px;color:#9f9;pointer-events:none}
+.keys{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:14px;margin-top:6px}
+.keys kbd{font-family:var(--display);font-size:12px;padding:3px 8px;border:1px solid var(--line2);background:rgba(0,0,0,.4);color:var(--cyan);justify-self:start;white-space:nowrap}
+@media (max-width:720px){#hangar .side{max-width:none;margin-top:auto;height:58%}#hangar .side .panel{padding:10px}.items{grid-template-columns:repeat(auto-fill,minmax(104px,1fr))}}
+@media (max-width:560px){.btn{padding:12px 16px}.panel{padding:13px}}
+@media (max-height:520px) and (orientation:landscape){.logo svg{width:50px}.logo-word{font-size:44px}.menu-btns{flex-direction:row;flex-wrap:wrap;justify-content:center}.menu-btns .btn{flex:1 1 40%}}
+</style>
+</head>
+<body>
+<canvas id="stage"></canvas>
+<canvas id="hud"></canvas>
+<div id="veil"></div>
+<div id="boot"><div style="text-align:center">СТРИЖИ<div class="bar"><i></i></div></div></div>
+<div id="fps"></div>
+<div id="ver"></div>
+<div id="purse" class="chip">₵ 0</div>
+<div id="toast"></div>
+
+<!-- ======== МЕНЮ ======== -->
+<section class="screen" id="menu"><div class="wrap">
+  <div class="logo">
+    <svg viewBox="0 0 100 100" aria-hidden="true"><defs><linearGradient id="lg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9ff3ff"/><stop offset="1" stop-color="#ff3fb4"/></linearGradient></defs>
+      <circle cx="50" cy="50" r="44" fill="none" stroke="url(#lg)" stroke-width="2.5" opacity=".7"/>
+      <path d="M50 14 L58 44 L88 40 L62 54 L74 82 L50 62 L26 82 L38 54 L12 40 L42 44 Z" fill="none" stroke="#31e6ff" stroke-width="3" stroke-linejoin="round"/>
+      <circle cx="50" cy="50" r="6" fill="#ffb347"/></svg>
+    <div class="logo-word">СТРИЖИ</div>
+    <div class="logo-sub">боевые дроны над городом-башней</div>
+  </div>
+  <div class="who"><input type="text" id="name" maxlength="14" placeholder="Позывной" autocomplete="off"></div>
+  <div class="menu-btns">
+    <button class="btn primary big" id="mPlay"><span class="ic">▶</span>В небо!</button>
+    <button class="btn" id="mHangar"><span class="ic">🛠</span>Ангар</button>
+    <button class="btn" id="mProfile"><span class="ic">🏆</span>Профиль и задания</button>
+    <button class="btn" id="mSettings"><span class="ic">⚙</span>Настройки</button>
+    <button class="btn ghost small" id="mHelp">Как играть</button>
+  </div>
+</div></section>
+
+<!-- ======== ВЫБОР РЕЖИМА ======== -->
+<section class="screen" id="play"><div class="wrap">
+  <h1 class="title">Куда летим?</h1>
+  <p class="sub">Один против ботов или вместе с друзьями — любой режим можно играть и так, и так.</p>
+  <div class="cards" id="modeCards"></div>
+  <div class="panel">
+    <div class="cap">Войти в игру друга</div>
+    <div class="row"><input type="text" id="joinId" class="grow" maxlength="6" placeholder="Код из 6 символов" autocomplete="off" style="text-transform:uppercase;letter-spacing:.3em;text-align:center;font-family:var(--display)">
+      <button class="btn primary" id="btnJoin">Войти</button></div>
+    <div class="net netStatus" id="netJoin"></div>
+  </div>
+  <div class="row c"><button class="btn ghost" id="playBack">← Назад</button></div>
+</div></section>
+
+<!-- ======== КАМПАНИЯ ======== -->
+<section class="screen" id="campaign"><div class="wrap">
+  <h1 class="title">Рейс — кампания</h1>
+  <p class="sub">Шесть вылетов и бесконечный режим. Звёзды даются за прохождение, малые потери и скорость.</p>
+  <div id="missionList"></div>
+  <div class="row c"><button class="btn ghost" id="campBack">← Назад</button></div>
+</div></section>
+
+<section class="screen" id="briefing"><div class="wrap">
+  <h1 class="title" id="brTitle"></h1>
+  <p class="sub" id="brSub"></p>
+  <div class="panel" id="brDlg"></div>
+  <div class="panel">
+    <div class="cap">Условия вылета</div>
+    <div class="grid" id="brOpts"></div>
+  </div>
+  <div class="row c" style="gap:12px">
+    <button class="btn primary big" id="brGo">Вылет!</button>
+    <button class="btn" id="brFriends">С друзьями</button>
+    <button class="btn ghost" id="brBack">← К заданиям</button>
+  </div>
+  <div class="net netStatus" id="netBr"></div>
+</div></section>
+
+<section class="screen" id="prologue"><div class="wrap" style="padding-top:8vh">
+  <div class="story" id="prologueText"></div>
+  <div class="row c" style="margin-top:20px"><button class="btn primary big" id="prologueGo">К заданиям →</button></div>
+</div></section>
+
+<!-- ======== НАСТРОЙКА ИГРЫ ======== -->
+<section class="screen" id="setup"><div class="wrap">
+  <h1 class="title" id="setupTitle"></h1>
+  <p class="sub" id="setupSub"></p>
+  <div class="panel"><div class="grid" id="setupOpts"></div></div>
+  <div class="row c" style="gap:12px">
+    <button class="btn primary big" id="suSolo">Против ботов</button>
+    <button class="btn big" id="suFriends">С друзьями</button>
+  </div>
+  <div class="net netStatus" id="netSetup"></div>
+  <div class="row c"><button class="btn ghost" id="suBack">← Назад</button></div>
+</div></section>
+
+<!-- ======== ЛОББИ ======== -->
+<section class="screen" id="lobby"><div class="wrap narrow">
+  <h1 class="title" id="lbTitle">Комната</h1>
+  <p class="sub" id="lbSub"></p>
+  <div class="panel">
+    <div class="cap">Код игры — отправь друзьям</div>
+    <div class="code" id="gameIdBox"></div>
+    <div class="link" id="joinLink"></div>
+    <div class="row c" id="linkBtns"><button class="btn small" id="btnCopy">📋 Копировать ссылку</button><button class="btn small" id="btnShare">📤 Поделиться</button></div>
+    <div class="link" id="serverShow"></div>
+    <div class="link" id="hostTries"></div>
+  </div>
+  <div class="panel"><div class="cap">Экипаж</div><div class="slots" id="slotList"></div><div class="link" id="lobbyHint" style="margin-top:10px"></div></div>
+  <div class="panel" id="lbOptsPanel"><div class="cap">Условия</div><div class="grid" id="lbOpts"></div></div>
+  <div class="row c" style="gap:10px"><button class="btn primary big" id="btnStart">Взлёт!</button><button class="btn" id="btnLbHangar">🛠 Ангар</button><button class="btn ghost" id="btnLbBack">Выйти</button></div>
+  <div class="net netStatus" id="netLobby"></div>
+</div></section>
+
+<!-- ======== АНГАР ======== -->
+<section class="screen" id="hangar"><div style="display:flex;flex-direction:column;height:100%">
+  <div class="head row sb"><button class="btn small" id="hgBack">← Назад</button><div class="chip" id="hgPurse">₵ 0</div></div>
+  <div class="side">
+    <div class="panel" style="margin-bottom:8px"><div id="hgInfo"></div></div>
+    <div class="tabs" id="hgTabs"></div>
+    <div class="items" id="hgItems"></div>
+  </div>
+</div></section>
+
+<!-- ======== ПРОФИЛЬ ======== -->
+<section class="screen" id="profile"><div class="wrap">
+  <h1 class="title">Профиль пилота</h1>
+  <div class="stat5" id="pfStats"></div>
+  <div class="panel"><div class="cap">Задания дня</div><div id="pfDaily"></div></div>
+  <div class="panel"><div class="cap">Достижения</div><div id="pfAch"></div></div>
+  <div class="row c"><button class="btn ghost" id="pfBack">← Назад</button></div>
+</div></section>
+
+<!-- ======== НАСТРОЙКИ ======== -->
+<section class="screen" id="settings"><div class="wrap narrow">
+  <h1 class="title">Настройки</h1>
+  <div class="panel" id="stBox"></div>
+  <div class="panel" id="stNet"></div>
+  <div class="row c"><button class="btn ghost" id="stBack">← Назад</button></div>
+</div></section>
+
+<!-- ======== БОЙ (экранные элементы) ======== -->
+<section class="screen" id="game"></section>
+<div id="radio"><div class="dlg"><div class="pt" id="rdIcon">🎧</div><div><div class="nm" id="rdName">Вера</div><div id="rdText" style="font-size:14px;line-height:1.45"></div></div></div></div>
+<div id="rotate"><div>↻<br>Поверни телефон<br>горизонтально</div></div>
+<div id="phrases"></div>
+<div id="touch">
+  <div id="joyZone"></div><div id="joyBase"><i id="joyKnob"></i></div>
+  <button class="tb big" id="bFire">ОГОНЬ</button>
+  <button class="tb" id="bMsl">🚀</button>
+  <button class="tb" id="bFlare">🔥</button>
+  <button class="tb" id="bBoost">⚡</button>
+  <button class="tb sm" id="bBrake">⏬</button>
+  <button class="tb sm" id="bSwap">🔁</button>
+  <button class="tb sm" id="bCam">🎥</button>
+  <button class="tb sm" id="bScore">📊</button>
+  <button class="tb sm" id="bPause">⏸</button>
+  <button class="tb sm" id="bRadio">💬</button>
+</div>
+
+<div class="ov" id="pause"><div class="box panel"><h2 class="title">Пауза</h2>
+  <div class="grid2" style="margin:12px 0" id="pauseSet"></div>
+  <div class="row c" style="gap:10px"><button class="btn primary" id="pResume">Продолжить</button><button class="btn" id="pHelp">Управление</button><button class="btn warn" id="pExit">Выйти в меню</button></div></div></div>
+<div class="ov wide" id="score"><div class="box panel"><h2 class="title" id="scTitle">Таблица</h2><div id="scBody"></div></div></div>
+<div class="ov wide" id="results"><div class="box panel" id="resBox"></div></div>
+<div class="ov" id="help"><div class="box panel"><h2 class="title">Управление</h2><div id="helpBody"></div><div class="row c" style="margin-top:12px"><button class="btn primary" id="helpClose">Понятно</button></div></div></div>
+
+<script src="vendor/three.min.js"></script>
+<script src="core.js"></script>
+<script src="data.js"></script>
+<script src="world.js"></script>
+<script src="flight.js"></script>
+<script src="predict.js"></script>
+<script src="missions.js"></script>
+<script src="ai.js"></script>
+<script src="sim.js"></script>
+<script src="combat.js"></script>
+<script src="sites.js"></script>
+<script src="modes.js"></script>
+<script src="room.js"></script>
+<script src="meta.js"></script>
+<script src="models.js"></script>
+<script src="fx.js"></script>
+<script src="render.js"></script>
+<script src="input.js"></script>
+<script src="audio.js"></script>
+<script src="hud.js"></script>
+<script src="net.js"></script>
+<script src="client.js"></script>
+<script src="view.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
